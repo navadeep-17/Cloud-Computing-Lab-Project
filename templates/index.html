@@ -44,6 +44,7 @@
                     <small>{{ g.user.email }}</small>
                 </div>
                 <form action="{{ url_for('auth.logout') }}" method="post">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
                     <button class="logout-button" type="submit" title="Sign out" aria-label="Sign out">↗</button>
                 </form>
             </div>
@@ -106,6 +107,7 @@
                 </article>
 
                 <form id="upload" class="upload-card" action="{{ url_for('upload_file') }}" method="post" enctype="multipart/form-data" data-max-bytes="{{ max_upload_mb * 1024 * 1024 }}">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="folder_id" value="{{ current_folder_id or '' }}">
                     <div class="upload-card-heading">
                         <div>
@@ -143,6 +145,7 @@
                 </div>
 
                 <form id="folderForm" class="folder-form hidden" action="{{ url_for('create_folder') }}" method="post">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="parent_id" value="{{ current_folder_id or '' }}">
                     <label>
                         <span>New folder name</span>
@@ -160,7 +163,8 @@
                             <span class="folder-icon">▰</span>
                             <span><strong>{{ folder.name }}</strong><small>Folder</small></span>
                         </a>
-                        <form action="{{ url_for('delete_folder', folder_id=folder.id) }}" method="post" onsubmit="return confirm('Delete this folder? It must be empty.');">
+                        <form action="{{ url_for('delete_folder', folder_id=folder.id) }}" method="post" data-confirm="Delete {{ folder.name }}? The folder must be empty.">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
                             <button class="folder-delete" type="submit" title="Delete empty folder" aria-label="Delete {{ folder.name }}">×</button>
                         </form>
                     </article>
@@ -202,7 +206,10 @@
                                     {% if file.previewable %}<button class="icon-button preview-trigger" type="button" title="Preview" aria-label="Preview {{ file.name }}">◉</button>{% endif %}
                                     <button class="secondary-button details-trigger" type="button">Details</button>
                                     <a class="secondary-button" href="{{ url_for('download_file', file_id=file.id) }}">Download</a>
-                                    <form action="{{ url_for('delete_file', file_id=file.id) }}" method="post" onsubmit="return confirm('Delete this file?');"><button class="danger-button" type="submit">Delete</button></form>
+                                    <form action="{{ url_for('delete_file', file_id=file.id) }}" method="post" data-confirm="Delete {{ file.name }}?">
+                                        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                                        <button class="danger-button" type="submit">Delete</button>
+                                    </form>
                                 </div></td>
                             </tr>
                             {% endfor %}
