@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudVault | File Storage</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-mark">CV</div>
+                <div>
+                    <h1>CloudVault</h1>
+                    <p>Local cloud simulator</p>
+                </div>
+            </div>
+
+            <nav class="nav-links" aria-label="Primary navigation">
+                <a class="nav-link active" href="#files">My Files</a>
+                <a class="nav-link" href="#upload">Upload</a>
+                <a class="nav-link" href="/health">Health</a>
+            </nav>
+
+            <div class="storage-card">
+                <span>Storage summary</span>
+                <strong>{{ total_size }}</strong>
+                <small>{{ total_files }} file{{ '' if total_files == 1 else 's' }} stored</small>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="topbar">
+                <div>
+                    <p class="eyebrow">Cloud Computing Lab Project</p>
+                    <h2>Centralized File Storage</h2>
+                </div>
+                <a class="primary-button compact" href="#upload">Upload File</a>
+            </header>
+
+            {% if request.args.get('message') %}
+            <div class="alert {{ request.args.get('status', 'success') }}" role="status">
+                {{ request.args.get('message') }}
+            </div>
+            {% endif %}
+
+            <section class="hero-grid">
+                <div class="hero-card">
+                    <p class="eyebrow">Simple. Centralized. Accessible.</p>
+                    <h3>Store and retrieve files through a web-based cloud simulation.</h3>
+                    <p>The browser communicates with a Flask server over HTTP while files are stored in a centralized server directory.</p>
+                    <div class="hero-stats">
+                        <div>
+                            <strong>{{ total_files }}</strong>
+                            <span>Stored files</span>
+                        </div>
+                        <div>
+                            <strong>{{ total_size }}</strong>
+                            <span>Storage used</span>
+                        </div>
+                        <div>
+                            <strong>{{ max_upload_mb }} MB</strong>
+                            <span>Max upload</span>
+                        </div>
+                    </div>
+                </div>
+
+                <form id="upload" class="upload-card" action="{{ url_for('upload_file') }}" method="post" enctype="multipart/form-data">
+                    <div id="dropZone" class="drop-zone" tabindex="0">
+                        <input id="fileInput" type="file" name="file" hidden required>
+                        <div class="upload-icon">↑</div>
+                        <h3>Drop a file here</h3>
+                        <p>or click to browse from your device</p>
+                        <span>Maximum {{ max_upload_mb }} MB per file</span>
+                    </div>
+                    <div id="selectedFile" class="selected-file">No file selected</div>
+                    <button class="primary-button" type="submit">Upload to CloudVault</button>
+                </form>
+            </section>
+
+            <section id="files" class="files-section">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Centralized directory</p>
+                        <h3>Your Files</h3>
+                    </div>
+                    <label class="search-box">
+                        <span aria-hidden="true">⌕</span>
+                        <input id="searchInput" type="search" placeholder="Search files..." autocomplete="off">
+                    </label>
+                </div>
+
+                <div class="file-table-wrapper">
+                    {% if files %}
+                    <table class="file-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Size</th>
+                                <th>Last modified</th>
+                                <th class="actions-heading">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fileTableBody">
+                            {% for file in files %}
+                            <tr class="file-row" data-filename="{{ file.name|lower }}">
+                                <td>
+                                    <div class="file-name-cell">
+                                        <span class="file-icon">{{ file.extension[:3]|upper }}</span>
+                                        <div>
+                                            <strong>{{ file.name }}</strong>
+                                            <small>Stored on server</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td><span class="type-badge">{{ file.extension|upper }}</span></td>
+                                <td>{{ file.size_label }}</td>
+                                <td>{{ file.modified_label }}</td>
+                                <td>
+                                    <div class="row-actions">
+                                        <a class="secondary-button" href="{{ url_for('download_file', filename=file.name) }}">Download</a>
+                                        <form action="{{ url_for('delete_file', filename=file.name) }}" method="post" onsubmit="return confirm('Delete {{ file.name }}?');">
+                                            <button class="danger-button" type="submit">Delete</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <div id="noSearchResults" class="empty-state hidden">
+                        <h4>No matching files</h4>
+                        <p>Try a different filename.</p>
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <div class="empty-icon">☁</div>
+                        <h4>No files stored yet</h4>
+                        <p>Upload your first file to begin using the centralized storage directory.</p>
+                        <a class="primary-button compact" href="#upload">Upload a file</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
