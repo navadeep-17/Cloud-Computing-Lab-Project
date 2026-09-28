@@ -2,27 +2,27 @@
 
 ## Goal
 
-Build a lab-ready cloud-file-storage simulator that starts with a centralized local directory and can later evolve into a real cloud-object-storage application without changing the basic user workflow.
+Build a lab-ready cloud-file-storage simulator that starts with centralized local storage and evolves toward a real cloud-object-storage application without changing the basic user workflow.
 
 ## Phase 1 — Core File Storage
 
 **Status: Complete**
 
-### Objectives
+### Objectives completed
 
-- Establish Flask application structure
-- Create centralized `uploads/` storage directory
-- Implement upload, list, download, and delete operations
-- Add secure filename handling
-- Prevent accidental overwrite through duplicate-name handling
-- Add file metadata and basic search
-- Create a responsive browser interface
-- Add API and health routes
-- Add automated tests
+- Flask application structure
+- Centralized `uploads/` directory
+- Upload, list, download, and delete operations
+- Secure filename handling
+- Duplicate-name protection
+- File metadata and search
+- Responsive browser interface
+- API and health routes
+- Automated tests
 
-### Main Deliverable
+### Main deliverable
 
-A user can upload a file from a browser, see it in the centralized file list, download it again, and delete it.
+A user can upload a file from a browser, see it in centralized storage, download it again, and delete it.
 
 ---
 
@@ -30,45 +30,48 @@ A user can upload a file from a browser, see it in the centralized file list, do
 
 **Status: Complete**
 
-### Objectives
+### Objectives completed
 
-- Add upload progress feedback
-- Add client-side upload-size checks
-- Add filename search
-- Add category filtering
-- Add sorting by date, name, and size
-- Classify files by category
-- Add a details modal
-- Add safe inline previews for supported types
-- Add storage-usage visualization
-- Introduce a simulated storage capacity
-- Enforce the storage quota on the backend
-- Extend automated tests
+- Upload progress feedback
+- Client-side upload-size checks
+- Filename search
+- Category filtering
+- Sorting by date, name, and size
+- File classification
+- Details modal
+- Safe inline previews
+- Storage-usage visualization
+- Simulated storage capacity
+- Backend quota enforcement
+- Expanded automated tests
 
-### Main Deliverable
+### Main deliverable
 
-A polished mini cloud-drive dashboard that demonstrates both file operations and resource-capacity management.
+A polished mini cloud-drive dashboard that demonstrates file operations and resource-capacity management.
 
 ---
 
 ## Phase 3 — Multi-User Application Layer
 
-**Status: Planned**
+**Status: Complete**
 
-### Objectives
+### Objectives completed
 
-- Add SQLite database
-- Add user registration and login
-- Store password hashes rather than plaintext passwords
-- Associate files with users
-- Add per-user storage views
-- Add persistent metadata records
-- Add folders or logical collections
-- Add upload/download/delete activity history
-- Add basic storage statistics per user
-- Add authorization checks to every protected file operation
+- SQLite database
+- User registration, login, and logout
+- Werkzeug password hashing
+- Session-based authentication
+- Per-user file ownership
+- Per-user physical storage directories
+- Persistent database metadata records
+- Nested logical folders
+- Upload/download/delete activity history
+- Account and folder activity history
+- Per-user storage statistics and quota enforcement
+- Authorization checks on every protected file/folder operation
+- Cross-user access-isolation tests
 
-### Proposed Data Model
+### Implemented data model
 
 ```text
 User
@@ -78,7 +81,7 @@ User
 ├── password_hash
 └── created_at
 
-FileRecord
+File
 ├── id
 ├── owner_id
 ├── stored_name
@@ -92,6 +95,7 @@ FileRecord
 Folder
 ├── id
 ├── owner_id
+├── parent_id
 ├── name
 └── created_at
 
@@ -100,12 +104,13 @@ Activity
 ├── user_id
 ├── file_id
 ├── action
+├── details
 └── timestamp
 ```
 
-### Main Deliverable
+### Main deliverable
 
-A multi-user storage application where users only see and manage their own files.
+A multi-user storage application where signed-in users see and manage only their own files and folders, while metadata and activity history persist in SQLite.
 
 ---
 
@@ -117,18 +122,19 @@ A multi-user storage application where users only see and manage their own files
 
 - Introduce a storage-service abstraction
 - Keep local storage as a development backend
-- Add one real object-storage backend
+- Add one real object-storage backend:
   - Amazon S3, or
   - Azure Blob Storage, or
   - Google Cloud Storage
-- Move secrets to environment variables
-- Add production configuration
-- Deploy the Flask service
+- Move production secrets to environment variables
+- Add secure production configuration
+- Add CSRF protection and hardened cookies
+- Deploy behind a production WSGI server
 - Add deployment health checks
 - Add architecture and workflow diagrams
 - Prepare evaluation/demo documentation
 
-### Target Architecture
+### Target architecture
 
 ```text
 Browser
@@ -137,7 +143,7 @@ Browser
    ▼
 Flask Application
    │
-   ├── Authentication / metadata database
+   ├── Authentication / SQLite metadata
    │
    └── Storage service interface
           │
@@ -148,7 +154,7 @@ Flask Application
              S3 / Blob / GCS
 ```
 
-### Main Deliverable
+### Main deliverable
 
 The same end-user workflow backed by actual cloud infrastructure.
 
@@ -159,12 +165,13 @@ The same end-user workflow backed by actual cloud infrastructure.
 Before the final lab demonstration:
 
 1. Run all automated tests.
-2. Test upload, list, preview, sorting, download, and delete manually.
-3. Upload multiple file types for the demo.
-4. Keep one unsupported preview type to explain controlled preview behavior.
-5. Demonstrate the `/api/files` endpoint.
-6. Demonstrate the `/health` endpoint.
-7. Explain centralized storage and client-server architecture.
-8. Explain why the current local storage simulates cloud storage.
-9. Explain how the storage backend can later be replaced by S3/Blob/GCS.
-10. Keep screenshots and an architecture diagram ready for the lab record/report.
+2. Register two users and demonstrate data isolation.
+3. Create a nested folder structure.
+4. Upload multiple file types.
+5. Demonstrate preview, sorting, download, and delete.
+6. Show the activity history after download/delete operations.
+7. Demonstrate `/api/files`, `/api/activity`, and `/health`.
+8. Explain why metadata lives in SQLite while file bytes live in the storage layer.
+9. Explain centralized storage, multi-tenancy, authentication, and authorization.
+10. Explain how Phase 4 replaces the local storage implementation with S3/Blob/GCS.
+11. Keep screenshots and an architecture diagram ready for the lab record/report.
