@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#142039">
-    <title>CloudVault | File Storage</title>
+    <title>CloudVault | {{ current_folder.name if current_folder else 'My Drive' }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -14,19 +14,20 @@
                 <div class="brand-mark" aria-hidden="true">CV</div>
                 <div>
                     <h1>CloudVault</h1>
-                    <p>Local cloud simulator</p>
+                    <p>Multi-user cloud simulator</p>
                 </div>
             </div>
 
             <nav class="nav-links" aria-label="Primary navigation">
-                <a class="nav-link active" href="#files"><span>▤</span> My Files</a>
+                <a class="nav-link active" href="{{ url_for('index') }}"><span>▤</span> My Drive</a>
                 <a class="nav-link" href="#upload"><span>↑</span> Upload</a>
+                <a class="nav-link" href="#activity"><span>↻</span> Activity</a>
                 <a class="nav-link" href="{{ url_for('health') }}"><span>●</span> Health</a>
             </nav>
 
             <div class="storage-card">
                 <div class="storage-card-heading">
-                    <span>Storage</span>
+                    <span>My storage</span>
                     <strong>{{ storage.percentage }}%</strong>
                 </div>
                 <div class="storage-meter" aria-label="{{ storage.percentage }} percent storage used">
@@ -35,79 +36,84 @@
                 <p><strong>{{ storage.used_label }}</strong> of {{ storage.capacity_label }} used</p>
                 <small>{{ storage.available_label }} available</small>
             </div>
+
+            <div class="user-card">
+                <div class="user-avatar">{{ g.user.name[0]|upper }}</div>
+                <div class="user-copy">
+                    <strong>{{ g.user.name }}</strong>
+                    <small>{{ g.user.email }}</small>
+                </div>
+                <form action="{{ url_for('auth.logout') }}" method="post">
+                    <button class="logout-button" type="submit" title="Sign out" aria-label="Sign out">↗</button>
+                </form>
+            </div>
         </aside>
 
         <main class="main-content">
             <header class="topbar">
                 <div>
-                    <p class="eyebrow">Cloud Computing Lab Project</p>
-                    <h2>Centralized File Storage</h2>
+                    <p class="eyebrow">Private workspace · Phase 3</p>
+                    <h2>{{ current_folder.name if current_folder else 'My Drive' }}</h2>
+                    <p class="topbar-subtitle">Signed in as {{ g.user.name }} · only your files are visible here.</p>
                 </div>
-                <a class="primary-button compact" href="#upload">+ Upload File</a>
+                <div class="topbar-actions">
+                    <button class="secondary-button" type="button" data-open-folder-form>+ New Folder</button>
+                    <a class="primary-button compact" href="#upload">+ Upload File</a>
+                </div>
             </header>
 
-            {% if request.args.get('message') %}
-            <div class="alert {{ request.args.get('status', 'success') }}" role="status">
-                {{ request.args.get('message') }}
-            </div>
-            {% endif %}
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                    <div class="alert {{ category }}" role="status">{{ message }}</div>
+                {% endfor %}
+            {% endwith %}
 
             <section class="metrics-grid" aria-label="Storage metrics">
                 <article class="metric-card">
                     <div class="metric-icon">▤</div>
-                    <div>
-                        <span>Total files</span>
-                        <strong>{{ total_files }}</strong>
-                    </div>
+                    <div><span>Total files</span><strong>{{ total_files }}</strong></div>
                 </article>
                 <article class="metric-card">
                     <div class="metric-icon">◫</div>
-                    <div>
-                        <span>Storage used</span>
-                        <strong>{{ total_size }}</strong>
-                    </div>
+                    <div><span>Storage used</span><strong>{{ total_size }}</strong></div>
                 </article>
                 <article class="metric-card">
                     <div class="metric-icon">◎</div>
-                    <div>
-                        <span>Available</span>
-                        <strong>{{ storage.available_label }}</strong>
-                    </div>
+                    <div><span>Available</span><strong>{{ storage.available_label }}</strong></div>
                 </article>
                 <article class="metric-card">
                     <div class="metric-icon">↑</div>
-                    <div>
-                        <span>Upload limit</span>
-                        <strong>{{ max_upload_mb }} MB</strong>
-                    </div>
+                    <div><span>Upload limit</span><strong>{{ max_upload_mb }} MB</strong></div>
                 </article>
             </section>
 
             <section class="hero-grid">
                 <article class="hero-card">
                     <div>
-                        <p class="eyebrow">Cloud storage simulation</p>
-                        <h3>Upload once. Retrieve from one centralized service.</h3>
-                        <p>CloudVault demonstrates the core cloud-storage flow: a browser sends files over HTTP, the server stores them centrally, and users retrieve them on demand.</p>
+                        <p class="eyebrow">Authenticated cloud simulation</p>
+                        <h3>Your files now have identity, ownership, folders, and history.</h3>
+                        <p>CloudVault stores file metadata in SQLite, isolates physical files by user, and validates ownership before every protected file operation.</p>
                     </div>
-                    <div class="architecture-flow" aria-label="System architecture">
-                        <div><span>01</span><strong>Browser</strong><small>Client</small></div>
+                    <div class="architecture-flow" aria-label="Phase 3 architecture">
+                        <div><span>01</span><strong>Account</strong><small>Session</small></div>
                         <b>→</b>
-                        <div><span>02</span><strong>Flask</strong><small>Service</small></div>
+                        <div><span>02</span><strong>Flask</strong><small>Authorization</small></div>
                         <b>→</b>
-                        <div><span>03</span><strong>Storage</strong><small>Centralized</small></div>
+                        <div><span>03</span><strong>SQLite</strong><small>Metadata</small></div>
+                        <b>+</b>
+                        <div><span>04</span><strong>Storage</strong><small>Per user</small></div>
                     </div>
                 </article>
 
                 <form id="upload" class="upload-card" action="{{ url_for('upload_file') }}" method="post" enctype="multipart/form-data" data-max-bytes="{{ max_upload_mb * 1024 * 1024 }}">
+                    <input type="hidden" name="folder_id" value="{{ current_folder_id or '' }}">
                     <div class="upload-card-heading">
                         <div>
-                            <p class="eyebrow">Add to storage</p>
+                            <p class="eyebrow">Add to {{ current_folder.name if current_folder else 'My Drive' }}</p>
                             <h3>Upload a file</h3>
                         </div>
-                        <span class="status-dot"><i></i> Online</span>
+                        <span class="status-dot"><i></i> Private</span>
                     </div>
-
                     <div id="dropZone" class="drop-zone" tabindex="0" role="button" aria-label="Choose a file to upload">
                         <input id="fileInput" type="file" name="file" hidden required>
                         <div class="upload-icon">↑</div>
@@ -115,9 +121,7 @@
                         <p>or click to browse from your device</p>
                         <span>Maximum {{ max_upload_mb }} MB per file</span>
                     </div>
-
                     <div id="selectedFile" class="selected-file">No file selected</div>
-
                     <div id="uploadProgress" class="upload-progress hidden" aria-live="polite">
                         <div class="progress-copy">
                             <span id="uploadProgressText">Uploading…</span>
@@ -125,116 +129,105 @@
                         </div>
                         <div class="progress-track"><span id="uploadProgressBar"></span></div>
                     </div>
-
-                    <button id="uploadButton" class="primary-button" type="submit">Upload to CloudVault</button>
+                    <button id="uploadButton" class="primary-button" type="submit">Upload to this folder</button>
                 </form>
+            </section>
+
+            <section class="drive-section">
+                <div class="breadcrumbs" aria-label="Folder path">
+                    <a href="{{ url_for('index') }}">My Drive</a>
+                    {% for crumb in breadcrumbs %}
+                        <span>›</span>
+                        <a href="{{ url_for('index', folder=crumb.id) }}">{{ crumb.name }}</a>
+                    {% endfor %}
+                </div>
+
+                <form id="folderForm" class="folder-form hidden" action="{{ url_for('create_folder') }}" method="post">
+                    <input type="hidden" name="parent_id" value="{{ current_folder_id or '' }}">
+                    <label>
+                        <span>New folder name</span>
+                        <input id="folderNameInput" type="text" name="name" maxlength="80" placeholder="e.g. Lab Reports" required>
+                    </label>
+                    <button class="primary-button compact" type="submit">Create folder</button>
+                    <button class="secondary-button" type="button" data-close-folder-form>Cancel</button>
+                </form>
+
+                {% if folders %}
+                <div class="folder-grid">
+                    {% for folder in folders %}
+                    <article class="folder-card">
+                        <a class="folder-main" href="{{ url_for('index', folder=folder.id) }}">
+                            <span class="folder-icon">▰</span>
+                            <span><strong>{{ folder.name }}</strong><small>Folder</small></span>
+                        </a>
+                        <form action="{{ url_for('delete_folder', folder_id=folder.id) }}" method="post" onsubmit="return confirm('Delete this folder? It must be empty.');">
+                            <button class="folder-delete" type="submit" title="Delete empty folder" aria-label="Delete {{ folder.name }}">×</button>
+                        </form>
+                    </article>
+                    {% endfor %}
+                </div>
+                {% endif %}
             </section>
 
             <section id="files" class="files-section">
                 <div class="section-heading">
                     <div>
-                        <p class="eyebrow">Centralized directory</p>
-                        <h3>Your Files</h3>
-                        <p class="section-subtitle">Search, sort, preview, inspect, download, or delete stored objects.</p>
+                        <p class="eyebrow">{{ 'Current folder' if current_folder else 'Private storage' }}</p>
+                        <h3>Files</h3>
+                        <p class="section-subtitle">Search, sort, preview, inspect, download, or delete files you own.</p>
                     </div>
                     <div class="file-controls">
-                        <label class="search-box">
-                            <span aria-hidden="true">⌕</span>
-                            <input id="searchInput" type="search" placeholder="Search files..." autocomplete="off">
-                        </label>
-                        <label class="select-control">
-                            <span class="sr-only">Filter by type</span>
-                            <select id="categoryFilter">
-                                <option value="all">All types</option>
-                                <option value="image">Images</option>
-                                <option value="document">Documents</option>
-                                <option value="spreadsheet">Spreadsheets</option>
-                                <option value="archive">Archives</option>
-                                <option value="code">Code</option>
-                                <option value="file">Other</option>
-                            </select>
-                        </label>
-                        <label class="select-control">
-                            <span class="sr-only">Sort files</span>
-                            <select id="sortSelect">
-                                <option value="newest">Newest first</option>
-                                <option value="oldest">Oldest first</option>
-                                <option value="name-asc">Name A–Z</option>
-                                <option value="name-desc">Name Z–A</option>
-                                <option value="size-desc">Largest first</option>
-                                <option value="size-asc">Smallest first</option>
-                            </select>
-                        </label>
+                        <label class="search-box"><span aria-hidden="true">⌕</span><input id="searchInput" type="search" placeholder="Search files..." autocomplete="off"></label>
+                        <label class="select-control"><span class="sr-only">Filter by type</span><select id="categoryFilter">
+                            <option value="all">All types</option><option value="image">Images</option><option value="document">Documents</option><option value="spreadsheet">Spreadsheets</option><option value="archive">Archives</option><option value="code">Code</option><option value="file">Other</option>
+                        </select></label>
+                        <label class="select-control"><span class="sr-only">Sort files</span><select id="sortSelect">
+                            <option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name-asc">Name A–Z</option><option value="name-desc">Name Z–A</option><option value="size-desc">Largest first</option><option value="size-asc">Smallest first</option>
+                        </select></label>
                     </div>
                 </div>
 
                 <div class="file-table-wrapper">
                     {% if files %}
                     <table class="file-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Type</th>
-                                <th>Size</th>
-                                <th>Last modified</th>
-                                <th class="actions-heading">Actions</th>
-                            </tr>
-                        </thead>
+                        <thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Uploaded</th><th class="actions-heading">Actions</th></tr></thead>
                         <tbody id="fileTableBody">
                             {% for file in files %}
-                            <tr class="file-row"
-                                data-filename="{{ file.name|lower }}"
-                                data-name="{{ file.name }}"
-                                data-extension="{{ file.extension }}"
-                                data-category="{{ file.category }}"
-                                data-size="{{ file.size }}"
-                                data-size-label="{{ file.size_label }}"
-                                data-modified="{{ file.modified_timestamp }}"
-                                data-modified-label="{{ file.modified_label }}"
-                                data-previewable="{{ 'true' if file.previewable else 'false' }}"
-                                data-preview-url="{{ url_for('preview_file', filename=file.name) if file.previewable else '' }}"
-                                data-download-url="{{ url_for('download_file', filename=file.name) }}">
-                                <td>
-                                    <button class="file-name-button details-trigger" type="button" aria-label="View details for {{ file.name }}">
-                                        <span class="file-icon file-icon-{{ file.category }}">{{ file.extension[:3]|upper }}</span>
-                                        <span class="file-name-copy">
-                                            <strong title="{{ file.name }}">{{ file.name }}</strong>
-                                            <small>{{ file.category|capitalize }} · Stored on server</small>
-                                        </span>
-                                    </button>
-                                </td>
+                            <tr class="file-row" data-filename="{{ file.name|lower }}" data-name="{{ file.name }}" data-extension="{{ file.extension }}" data-category="{{ file.category }}" data-size="{{ file.size }}" data-size-label="{{ file.size_label }}" data-modified="{{ file.modified_timestamp }}" data-modified-label="{{ file.modified_label }}" data-previewable="{{ 'true' if file.previewable else 'false' }}" data-preview-url="{{ url_for('preview_file', file_id=file.id) if file.previewable else '' }}" data-download-url="{{ url_for('download_file', file_id=file.id) }}">
+                                <td><button class="file-name-button details-trigger" type="button"><span class="file-icon file-icon-{{ file.category }}">{{ file.extension[:3]|upper }}</span><span class="file-name-copy"><strong title="{{ file.name }}">{{ file.name }}</strong><small>{{ file.category|capitalize }} · Private object</small></span></button></td>
                                 <td><span class="type-badge">{{ file.extension|upper }}</span></td>
                                 <td>{{ file.size_label }}</td>
                                 <td>{{ file.modified_label }}</td>
-                                <td>
-                                    <div class="row-actions">
-                                        {% if file.previewable %}
-                                        <button class="icon-button preview-trigger" type="button" title="Preview {{ file.name }}" aria-label="Preview {{ file.name }}">◉</button>
-                                        {% endif %}
-                                        <button class="secondary-button details-trigger" type="button">Details</button>
-                                        <a class="secondary-button" href="{{ url_for('download_file', filename=file.name) }}">Download</a>
-                                        <form action="{{ url_for('delete_file', filename=file.name) }}" method="post" onsubmit="return confirm('Delete {{ file.name }}?');">
-                                            <button class="danger-button" type="submit">Delete</button>
-                                        </form>
-                                    </div>
-                                </td>
+                                <td><div class="row-actions">
+                                    {% if file.previewable %}<button class="icon-button preview-trigger" type="button" title="Preview" aria-label="Preview {{ file.name }}">◉</button>{% endif %}
+                                    <button class="secondary-button details-trigger" type="button">Details</button>
+                                    <a class="secondary-button" href="{{ url_for('download_file', file_id=file.id) }}">Download</a>
+                                    <form action="{{ url_for('delete_file', file_id=file.id) }}" method="post" onsubmit="return confirm('Delete this file?');"><button class="danger-button" type="submit">Delete</button></form>
+                                </div></td>
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
-                    <div id="noSearchResults" class="empty-state hidden">
-                        <div class="empty-icon">⌕</div>
-                        <h4>No matching files</h4>
-                        <p>Change your search or file-type filter.</p>
-                        <button id="clearFilters" class="secondary-button" type="button">Clear filters</button>
-                    </div>
+                    <div id="noSearchResults" class="empty-state hidden"><div class="empty-icon">⌕</div><h4>No matching files</h4><p>Change your search or file-type filter.</p><button id="clearFilters" class="secondary-button" type="button">Clear filters</button></div>
                     {% else %}
-                    <div class="empty-state">
-                        <div class="empty-icon">☁</div>
-                        <h4>No files stored yet</h4>
-                        <p>Upload your first file to begin using the centralized storage directory.</p>
-                        <a class="primary-button compact" href="#upload">Upload a file</a>
-                    </div>
+                    <div class="empty-state"><div class="empty-icon">☁</div><h4>No files in this folder</h4><p>Upload a file here or create another folder to organize your storage.</p><a class="primary-button compact" href="#upload">Upload a file</a></div>
+                    {% endif %}
+                </div>
+            </section>
+
+            <section id="activity" class="activity-section">
+                <div class="section-heading"><div><p class="eyebrow">Persistent audit trail</p><h3>Recent Activity</h3><p class="section-subtitle">Your latest account, folder, upload, download, and delete events.</p></div><a class="secondary-button" href="{{ url_for('api_activity') }}">View JSON API</a></div>
+                <div class="activity-card">
+                    {% if activities %}
+                        {% for activity in activities %}
+                        <div class="activity-row">
+                            <span class="activity-icon">{{ '↑' if activity.action == 'upload' else '↓' if activity.action == 'download' else '×' if activity.action == 'delete' else '▰' if 'folder' in activity.action else '●' }}</span>
+                            <div><strong>{{ activity.details or activity.action|replace('_', ' ')|title }}</strong><small>{{ activity.timestamp }} UTC</small></div>
+                            <span class="activity-badge">{{ activity.action|replace('_', ' ') }}</span>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state compact-empty"><p>No activity recorded yet.</p></div>
                     {% endif %}
                 </div>
             </section>
@@ -243,28 +236,12 @@
 
     <dialog id="fileModal" class="file-modal">
         <div class="modal-shell">
-            <header class="modal-header">
-                <div>
-                    <p class="eyebrow">Stored object</p>
-                    <h3 id="modalFileName">File details</h3>
-                </div>
-                <button id="closeModal" class="modal-close" type="button" aria-label="Close file details">×</button>
-            </header>
-
+            <header class="modal-header"><div><p class="eyebrow">Private stored object</p><h3 id="modalFileName">File details</h3></div><button id="closeModal" class="modal-close" type="button" aria-label="Close file details">×</button></header>
             <div id="previewPanel" class="preview-panel hidden"></div>
-
             <dl class="details-grid">
-                <div><dt>Type</dt><dd id="modalFileType">—</dd></div>
-                <div><dt>Size</dt><dd id="modalFileSize">—</dd></div>
-                <div><dt>Category</dt><dd id="modalFileCategory">—</dd></div>
-                <div><dt>Modified</dt><dd id="modalFileModified">—</dd></div>
-                <div class="details-wide"><dt>Storage</dt><dd>Centralized local server directory</dd></div>
+                <div><dt>Type</dt><dd id="modalFileType">—</dd></div><div><dt>Size</dt><dd id="modalFileSize">—</dd></div><div><dt>Category</dt><dd id="modalFileCategory">—</dd></div><div><dt>Uploaded</dt><dd id="modalFileModified">—</dd></div><div class="details-wide"><dt>Ownership</dt><dd>{{ g.user.email }} · authorization required</dd></div>
             </dl>
-
-            <div class="modal-actions">
-                <button id="modalPreviewButton" class="secondary-button hidden" type="button">Show preview</button>
-                <a id="modalDownloadButton" class="primary-button compact" href="#">Download file</a>
-            </div>
+            <div class="modal-actions"><button id="modalPreviewButton" class="secondary-button hidden" type="button">Show preview</button><a id="modalDownloadButton" class="primary-button compact" href="#">Download file</a></div>
         </div>
     </dialog>
 
