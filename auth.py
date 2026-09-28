@@ -45,12 +45,12 @@ def register():
         password = request.form.get("password", "")
         error = None
 
-        if len(name) < 2:
-            error = "Please enter your name."
-        elif "@" not in email or "." not in email.rsplit("@", 1)[-1]:
+        if len(name) < 2 or len(name) > 80:
+            error = "Name must be between 2 and 80 characters."
+        elif len(email) > 254 or "@" not in email or "." not in email.rsplit("@", 1)[-1]:
             error = "Please enter a valid email address."
-        elif len(password) < 6:
-            error = "Password must be at least 6 characters."
+        elif len(password) < 6 or len(password) > 128:
+            error = "Password must be between 6 and 128 characters."
 
         if error is None:
             db = get_db()
@@ -66,6 +66,7 @@ def register():
                 )
                 db.commit()
             except sqlite3.IntegrityError:
+                db.rollback()
                 error = "An account with that email already exists."
             else:
                 session.clear()
@@ -86,10 +87,13 @@ def login():
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         db = get_db()
-        user = db.execute(
-            "SELECT * FROM users WHERE email = ?",
-            (email,),
-        ).fetchone()
+
+        user = None
+        if len(email) <= 254 and len(password) <= 128:
+            user = db.execute(
+                "SELECT * FROM users WHERE email = ?",
+                (email,),
+            ).fetchone()
 
         error = None
         if user is None or not check_password_hash(user["password_hash"], password):
