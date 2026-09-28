@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -10,6 +11,7 @@ from werkzeug.utils import secure_filename
 
 import auth
 import database
+import security
 from auth import login_required
 from database import get_db
 
@@ -30,15 +32,19 @@ CODE_EXTENSIONS = {"c", "cpp", "css", "html", "java", "js", "json", "jsx", "py",
 
 app = Flask(__name__)
 app.config.update(
-    SECRET_KEY=os.environ.get("SECRET_KEY", "cloudvault-lab-development-key"),
+    SECRET_KEY=os.environ.get("SECRET_KEY") or secrets.token_hex(32),
     UPLOAD_FOLDER=str(UPLOAD_FOLDER),
     DATABASE=str(DATABASE_PATH),
     MAX_CONTENT_LENGTH=MAX_CONTENT_LENGTH,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("SESSION_COOKIE_SECURE", "0") == "1",
 )
 
 UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 database.init_app(app)
 app.register_blueprint(auth.bp)
+security.init_app(app)
 
 
 def human_readable_size(size: int) -> str:
@@ -429,9 +435,12 @@ def health():
 def request_entity_too_large(_error):
     max_mb = app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024)
     flash(f"File is too large. Maximum size is {max_mb} MB.", "error")
-    return redirect(request.referrer or url_for("index"))
+    if g.get("user") is not None:
+        return redirect(url_for("index"))
+    return redirect(url_for("auth.login"))
 
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "5000"))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+    app.run(host="0.0.0.0", port=port, debug=debug)
