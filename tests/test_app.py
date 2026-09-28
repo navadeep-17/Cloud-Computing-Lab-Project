@@ -21,6 +21,7 @@ def client(tmp_path):
         SECRET_KEY="test-secret",
         DATABASE=str(tmp_path / "test.db"),
         UPLOAD_FOLDER=str(upload_root),
+        CSRF_ENABLED=True,
     )
 
     with app_module.app.app_context():
@@ -34,30 +35,93 @@ def client(tmp_path):
     app_module.app.config["UPLOAD_FOLDER"] = original_upload_config
 
 
+def csrf_token(client, seed_path="/auth/login"):
+    with client.session_transaction() as session:
+        token = session.get("_csrf_token")
+    if token:
+        return token
+
+    client.get(seed_path)
+    with client.session_transaction() as session:
+        token = session.get("_csrf_token")
+    assert token
+    return token
+
+
 def register(client, name="Test User", email="test@example.com", password="secret1"):
+    client.get("/auth/register")
     return client.post(
         "/auth/register",
-        data={"name": name, "email": email, "password": password},
+        data={
+            "name": name,
+            "email": email,
+            "password": password,
+            "_csrf_token": csrf_token(client, "/auth/register"),
+        },
         follow_redirects=True,
     )
 
 
 def login(client, email="test@example.com", password="secret1"):
+    client.get("/auth/login")
     return client.post(
         "/auth/login",
-        data={"email": email, "password": password},
+        data={
+            "email": email,
+            "password": password,
+            "_csrf_token": csrf_token(client),
+        },
         follow_redirects=True,
     )
 
 
+def logout(client, follow_redirects=False):
+    return client.post(
+        "/auth/logout",
+        data={"_csrf_token": csrf_token(client)},
+        follow_redirects=follow_redirects,
+    )
+
+
 def upload(client, content: bytes, filename: str, folder_id=None, follow_redirects=False):
-    data = {"file": (io.BytesIO(content), filename)}
+    data = {
+        "file": (io.BytesIO(content), filename),
+        "_csrf_token": csrf_token(client),
+    }
     if folder_id is not None:
         data["folder_id"] = str(folder_id)
     return client.post(
         "/upload",
         data=data,
         content_type="multipart/form-data",
+        follow_redirects=follow_redirects,
+    )
+
+
+def create_folder(client, name, parent_id="", follow_redirects=False):
+    return client.post(
+        "/folders",
+        data={
+            "name": name,
+            "parent_id": str(parent_id) if parent_id is not None else "",
+            "_csrf_token": csrf_token(client),
+        },
+        follow_redirects=follow_redirects,
+    )
+
+
+def delete_file(client, file_id, follow_redirects=False):
+    return client.post(
+        f"/delete/{file_id}",
+        data={"_csrf_token": csrf_token(client)},
+        follow_redirects=follow_redirects,
+    )
+
+
+def delete_folder(client, folder_id, follow_redirects=False):
+    return client.post(
+        f"/folders/{folder_id}/delete",
+        data={"_csrf_token": csrf_token(client)},
         follow_redirects=follow_redirects,
     )
 
@@ -94,15 +158,45 @@ def test_password_is_hashed_not_stored_plaintext(client):
 
 def test_login_and_logout(client):
     register(client)
-    client.post("/auth/logout")
+    logout(client)
 
     login_response = login(client)
     assert login_response.status_code == 200
     assert b"My Drive" in login_response.data
 
-    logout_response = client.post("/auth/logout")
+    logout_response = logout(client)
     assert logout_response.status_code == 302
     assert "/auth/login" in logout_response.headers["Location"]
+
+
+def test_duplicate_registration_rolls_back_cleanly(client):
+    register(client)
+    logout(client)
+    duplicate = register(client, name="Other Name")
+    assert duplicate.status_code == 200
+    assert b"already exists" in duplicate.data
+
+    login_response = login(client)
+    assert login_response.status_code == 200
+    assert b"My Drive" in login_response.data
+
+
+def test_csrf_rejects_missing_token(client):
+    client.get("/auth/register")
+    response = client.post(
+        "/auth/register",
+        data={"name": "No Token", "email": "notoken@example.com", "password": "secret1"},
+    )
+    assert response.status_code == 400
+
+
+def test_security_headers_are_present(client):
+    response = client.get("/auth/login")
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["X-Frame-Options"] == "SAMEORIGIN"
+    assert response.headers["Referrer-Policy"] == "same-origin"
+    assert "default-src 'self'" in response.headers["Content-Security-Policy"]
+    assert response.headers["Permissions-Policy"] == "camera=(), microphone=(), geolocation=()"
 
 
 def test_upload_list_preview_download_and_delete(client):
@@ -131,7 +225,7 @@ def test_upload_list_preview_download_and_delete(client):
     assert download_response.data == b"cloud lab test data"
     assert "attachment" in download_response.headers["Content-Disposition"]
 
-    delete_response = client.post(f"/delete/{file_id}", follow_redirects=True)
+    delete_response = delete_file(client, file_id, follow_redirects=True)
     assert delete_response.status_code == 200
     assert b"notes.txt deleted" in delete_response.data
     assert client.get("/api/files").get_json()["files"] == []
@@ -160,7 +254,7 @@ def test_duplicate_display_names_are_stored_as_distinct_objects(client):
 
 def test_folder_creation_navigation_and_file_assignment(client):
     register(client)
-    create_response = client.post("/folders", data={"name": "Lab Reports", "parent_id": ""}, follow_redirects=True)
+    create_response = create_folder(client, "Lab Reports", follow_redirects=True)
     assert create_response.status_code == 200
     assert b"Lab Reports" in create_response.data
 
@@ -176,11 +270,11 @@ def test_folder_creation_navigation_and_file_assignment(client):
 
 def test_non_empty_folder_cannot_be_deleted(client):
     register(client)
-    client.post("/folders", data={"name": "Keep Me", "parent_id": ""})
+    create_folder(client, "Keep Me")
     folder_id = client.get("/api/files").get_json()["folders"][0]["id"]
     upload(client, b"data", "inside.txt", folder_id=folder_id)
 
-    response = client.post(f"/folders/{folder_id}/delete", follow_redirects=True)
+    response = delete_folder(client, folder_id, follow_redirects=True)
     assert response.status_code == 200
     assert b"Only empty folders can be deleted" in response.data
 
@@ -189,24 +283,28 @@ def test_users_cannot_access_each_others_files(client):
     register(client, name="Alice", email="alice@example.com")
     upload(client, b"alice secret", "alice.txt")
     alice_file_id = first_file(client)["id"]
-    client.post("/auth/logout")
+    logout(client)
 
     register(client, name="Bob", email="bob@example.com")
     assert client.get("/api/files").get_json()["files"] == []
     assert client.get(f"/download/{alice_file_id}").status_code == 404
     assert client.get(f"/preview/{alice_file_id}").status_code == 404
-    assert client.post(f"/delete/{alice_file_id}").status_code == 404
+    assert delete_file(client, alice_file_id).status_code == 404
 
 
 def test_user_cannot_open_another_users_folder(client):
     register(client, name="Alice", email="alice@example.com")
-    client.post("/folders", data={"name": "Alice Folder", "parent_id": ""})
+    create_folder(client, "Alice Folder")
     alice_folder_id = client.get("/api/files").get_json()["folders"][0]["id"]
-    client.post("/auth/logout")
+    logout(client)
 
     register(client, name="Bob", email="bob@example.com")
     assert client.get(f"/?folder={alice_folder_id}").status_code == 404
-    assert client.post("/upload", data={"folder_id": str(alice_folder_id)}).status_code == 404
+    response = client.post(
+        "/upload",
+        data={"folder_id": str(alice_folder_id), "_csrf_token": csrf_token(client)},
+    )
+    assert response.status_code == 404
 
 
 def test_activity_history_records_file_events(client):
@@ -214,7 +312,7 @@ def test_activity_history_records_file_events(client):
     upload(client, b"activity", "activity.txt")
     file_id = first_file(client)["id"]
     client.get(f"/download/{file_id}")
-    client.post(f"/delete/{file_id}")
+    delete_file(client, file_id)
 
     payload = client.get("/api/activity").get_json()
     actions = [item["action"] for item in payload["activities"]]
