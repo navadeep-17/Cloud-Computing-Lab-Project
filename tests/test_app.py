@@ -4,43 +4,109 @@ from pathlib import Path
 import pytest
 
 import app as app_module
+import database
 
 
 @pytest.fixture()
 def client(tmp_path):
     original_upload_folder = app_module.UPLOAD_FOLDER
-    original_config_folder = app_module.app.config["UPLOAD_FOLDER"]
+    original_database = app_module.app.config["DATABASE"]
+    original_upload_config = app_module.app.config["UPLOAD_FOLDER"]
 
-    app_module.UPLOAD_FOLDER = tmp_path
+    upload_root = tmp_path / "uploads"
+    upload_root.mkdir()
+    app_module.UPLOAD_FOLDER = upload_root
     app_module.app.config.update(
         TESTING=True,
-        UPLOAD_FOLDER=str(tmp_path),
+        SECRET_KEY="test-secret",
+        DATABASE=str(tmp_path / "test.db"),
+        UPLOAD_FOLDER=str(upload_root),
     )
+
+    with app_module.app.app_context():
+        database.init_db()
 
     with app_module.app.test_client() as test_client:
         yield test_client
 
     app_module.UPLOAD_FOLDER = original_upload_folder
-    app_module.app.config["UPLOAD_FOLDER"] = original_config_folder
+    app_module.app.config["DATABASE"] = original_database
+    app_module.app.config["UPLOAD_FOLDER"] = original_upload_config
 
 
-def upload(client, content: bytes, filename: str, follow_redirects: bool = False):
+def register(client, name="Test User", email="test@example.com", password="secret1"):
+    return client.post(
+        "/auth/register",
+        data={"name": name, "email": email, "password": password},
+        follow_redirects=True,
+    )
+
+
+def login(client, email="test@example.com", password="secret1"):
+    return client.post(
+        "/auth/login",
+        data={"email": email, "password": password},
+        follow_redirects=True,
+    )
+
+
+def upload(client, content: bytes, filename: str, folder_id=None, follow_redirects=False):
+    data = {"file": (io.BytesIO(content), filename)}
+    if folder_id is not None:
+        data["folder_id"] = str(folder_id)
     return client.post(
         "/upload",
-        data={"file": (io.BytesIO(content), filename)},
+        data=data,
         content_type="multipart/form-data",
         follow_redirects=follow_redirects,
     )
 
 
-def test_home_page_loads(client):
+def first_file(client):
+    payload = client.get("/api/files").get_json()
+    return payload["files"][0]
+
+
+def test_anonymous_user_is_redirected_to_login(client):
     response = client.get("/")
+    assert response.status_code == 302
+    assert "/auth/login" in response.headers["Location"]
+
+
+def test_register_creates_session_and_dashboard(client):
+    response = register(client)
     assert response.status_code == 200
-    assert b"Centralized File Storage" in response.data
-    assert b"CloudVault" in response.data
+    assert b"My Drive" in response.data
+    assert b"Test User" in response.data
 
 
-def test_upload_list_and_download(client):
+def test_password_is_hashed_not_stored_plaintext(client):
+    register(client)
+    with app_module.app.app_context():
+        row = database.get_db().execute(
+            "SELECT password_hash FROM users WHERE email = ?",
+            ("test@example.com",),
+        ).fetchone()
+        assert row is not None
+        assert row["password_hash"] != "secret1"
+        assert "secret1" not in row["password_hash"]
+
+
+def test_login_and_logout(client):
+    register(client)
+    client.post("/auth/logout")
+
+    login_response = login(client)
+    assert login_response.status_code == 200
+    assert b"My Drive" in login_response.data
+
+    logout_response = client.post("/auth/logout")
+    assert logout_response.status_code == 302
+    assert "/auth/login" in logout_response.headers["Location"]
+
+
+def test_upload_list_preview_download_and_delete(client):
+    register(client)
     upload_response = upload(client, b"cloud lab test data", "notes.txt", follow_redirects=True)
     assert upload_response.status_code == 200
     assert b"notes.txt uploaded successfully" in upload_response.data
@@ -54,59 +120,124 @@ def test_upload_list_and_download(client):
     assert payload["storage"]["used"] == len(b"cloud lab test data")
     assert payload["storage"]["capacity"] == app_module.STORAGE_CAPACITY
 
-    download_response = client.get("/download/notes.txt")
+    file_id = payload["files"][0]["id"]
+
+    preview_response = client.get(f"/preview/{file_id}")
+    assert preview_response.status_code == 200
+    assert preview_response.data == b"cloud lab test data"
+
+    download_response = client.get(f"/download/{file_id}")
     assert download_response.status_code == 200
     assert download_response.data == b"cloud lab test data"
     assert "attachment" in download_response.headers["Content-Disposition"]
 
-
-def test_preview_supported_file(client):
-    upload(client, b"preview me", "preview.txt")
-
-    response = client.get("/preview/preview.txt")
-    assert response.status_code == 200
-    assert response.data == b"preview me"
-    assert "attachment" not in response.headers.get("Content-Disposition", "")
-
-
-def test_preview_rejects_unsupported_file_type(client):
-    upload(client, b"binary-ish", "archive.zip")
-
-    response = client.get("/preview/archive.zip")
-    assert response.status_code == 415
-
-
-def test_duplicate_filename_gets_unique_name(client):
-    for _ in range(2):
-        response = upload(client, b"same name", "report.pdf")
-        assert response.status_code == 302
-
-    stored_names = sorted(path.name for path in Path(app_module.UPLOAD_FOLDER).iterdir())
-    assert stored_names == ["report.pdf", "report_1.pdf"]
-
-
-def test_delete_file(client):
-    upload(client, b"delete me", "temp.txt")
-
-    delete_response = client.post("/delete/temp.txt", follow_redirects=True)
+    delete_response = client.post(f"/delete/{file_id}", follow_redirects=True)
     assert delete_response.status_code == 200
-    assert b"temp.txt deleted" in delete_response.data
-    assert not (Path(app_module.UPLOAD_FOLDER) / "temp.txt").exists()
+    assert b"notes.txt deleted" in delete_response.data
+    assert client.get("/api/files").get_json()["files"] == []
 
 
-def test_storage_quota_blocks_upload(client, monkeypatch):
+def test_unsupported_preview_returns_415(client):
+    register(client)
+    upload(client, b"binary-ish", "archive.zip")
+    file_id = first_file(client)["id"]
+    assert client.get(f"/preview/{file_id}").status_code == 415
+
+
+def test_duplicate_display_names_are_stored_as_distinct_objects(client):
+    register(client)
+    upload(client, b"first", "report.pdf")
+    upload(client, b"second", "report.pdf")
+
+    payload = client.get("/api/files").get_json()
+    assert len(payload["files"]) == 2
+    assert [item["name"] for item in payload["files"]].count("report.pdf") == 2
+    assert len({item["stored_name"] for item in payload["files"]}) == 2
+
+    user_directory = Path(app_module.UPLOAD_FOLDER) / "user_1"
+    assert len(list(user_directory.iterdir())) == 2
+
+
+def test_folder_creation_navigation_and_file_assignment(client):
+    register(client)
+    create_response = client.post("/folders", data={"name": "Lab Reports", "parent_id": ""}, follow_redirects=True)
+    assert create_response.status_code == 200
+    assert b"Lab Reports" in create_response.data
+
+    folder = client.get("/api/files").get_json()["folders"][0]
+    folder_id = folder["id"]
+    upload(client, b"inside folder", "report.txt", folder_id=folder_id)
+
+    folder_page = client.get(f"/?folder={folder_id}")
+    assert folder_page.status_code == 200
+    assert b"report.txt" in folder_page.data
+    assert b"Lab Reports" in folder_page.data
+
+
+def test_non_empty_folder_cannot_be_deleted(client):
+    register(client)
+    client.post("/folders", data={"name": "Keep Me", "parent_id": ""})
+    folder_id = client.get("/api/files").get_json()["folders"][0]["id"]
+    upload(client, b"data", "inside.txt", folder_id=folder_id)
+
+    response = client.post(f"/folders/{folder_id}/delete", follow_redirects=True)
+    assert response.status_code == 200
+    assert b"Only empty folders can be deleted" in response.data
+
+
+def test_users_cannot_access_each_others_files(client):
+    register(client, name="Alice", email="alice@example.com")
+    upload(client, b"alice secret", "alice.txt")
+    alice_file_id = first_file(client)["id"]
+    client.post("/auth/logout")
+
+    register(client, name="Bob", email="bob@example.com")
+    assert client.get("/api/files").get_json()["files"] == []
+    assert client.get(f"/download/{alice_file_id}").status_code == 404
+    assert client.get(f"/preview/{alice_file_id}").status_code == 404
+    assert client.post(f"/delete/{alice_file_id}").status_code == 404
+
+
+def test_user_cannot_open_another_users_folder(client):
+    register(client, name="Alice", email="alice@example.com")
+    client.post("/folders", data={"name": "Alice Folder", "parent_id": ""})
+    alice_folder_id = client.get("/api/files").get_json()["folders"][0]["id"]
+    client.post("/auth/logout")
+
+    register(client, name="Bob", email="bob@example.com")
+    assert client.get(f"/?folder={alice_folder_id}").status_code == 404
+    assert client.post("/upload", data={"folder_id": str(alice_folder_id)}).status_code == 404
+
+
+def test_activity_history_records_file_events(client):
+    register(client)
+    upload(client, b"activity", "activity.txt")
+    file_id = first_file(client)["id"]
+    client.get(f"/download/{file_id}")
+    client.post(f"/delete/{file_id}")
+
+    payload = client.get("/api/activity").get_json()
+    actions = [item["action"] for item in payload["activities"]]
+    assert "upload" in actions
+    assert "download" in actions
+    assert "delete" in actions
+    assert "account_created" in actions
+
+
+def test_storage_quota_is_per_user(client, monkeypatch):
     monkeypatch.setattr(app_module, "STORAGE_CAPACITY", 5)
-
+    register(client, name="Alice", email="alice@example.com")
     response = upload(client, b"123456", "too-big.txt", follow_redirects=True)
     assert response.status_code == 200
     assert b"Not enough storage" in response.data
-    assert not (Path(app_module.UPLOAD_FOLDER) / "too-big.txt").exists()
+    assert client.get("/api/files").get_json()["files"] == []
 
 
-def test_health_endpoint(client):
+def test_health_endpoint_is_public_and_reports_phase_3_backends(client):
     response = client.get("/health")
     payload = response.get_json()
     assert response.status_code == 200
     assert payload["status"] == "ok"
     assert payload["storage_backend"] == "local-directory"
-    assert payload["files"] == 0
+    assert payload["metadata_backend"] == "sqlite"
+    assert payload["authentication"] == "session"
