@@ -1,9 +1,3 @@
-const phase3Styles = document.createElement("link");
-phase3Styles.rel = "stylesheet";
-phase3Styles.href = "/static/phase3.css";
-phase3Styles.dataset.phase3 = "true";
-document.head.appendChild(phase3Styles);
-
 const uploadForm = document.getElementById("upload");
 const dropZone = document.getElementById("dropZone");
 const fileInput = document.getElementById("fileInput");
