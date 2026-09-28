@@ -27,9 +27,10 @@
             <div class="auth-card-heading"><p class="eyebrow">Get started</p><h2>Create account</h2><p>Set up a CloudVault account for the lab demo.</p></div>
             {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="alert {{ category }}" role="alert">{{ message }}</div>{% endfor %}{% endwith %}
             <form class="auth-form" method="post">
-                <label><span>Name</span><input type="text" name="name" placeholder="Your name" autocomplete="name" minlength="2" required></label>
-                <label><span>Email address</span><input type="email" name="email" placeholder="you@example.com" autocomplete="email" required></label>
-                <label><span>Password</span><input type="password" name="password" placeholder="At least 6 characters" autocomplete="new-password" minlength="6" required></label>
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                <label><span>Name</span><input type="text" name="name" placeholder="Your name" autocomplete="name" minlength="2" maxlength="80" required></label>
+                <label><span>Email address</span><input type="email" name="email" placeholder="you@example.com" autocomplete="email" maxlength="254" required></label>
+                <label><span>Password</span><input type="password" name="password" placeholder="6-128 characters" autocomplete="new-password" minlength="6" maxlength="128" required></label>
                 <button class="primary-button" type="submit">Create CloudVault account</button>
             </form>
             <p class="auth-switch">Already have an account? <a href="{{ url_for('auth.login') }}">Sign in</a></p>

@@ -1,9 +1,3 @@
-const phase3Styles = document.createElement("link");
-phase3Styles.rel = "stylesheet";
-phase3Styles.href = "/static/phase3.css";
-phase3Styles.dataset.phase3 = "true";
-document.head.appendChild(phase3Styles);
-
 const uploadForm = document.getElementById("upload");
 const dropZone = document.getElementById("dropZone");
 const fileInput = document.getElementById("fileInput");
@@ -277,5 +271,12 @@ document.querySelectorAll("[data-close-folder-form]").forEach((button) => {
     button.addEventListener("click", () => {
         folderForm?.classList.add("hidden");
         if (folderNameInput) folderNameInput.value = "";
+    });
+});
+
+document.querySelectorAll("form[data-confirm]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+        const message = form.dataset.confirm || "Continue with this action?";
+        if (!window.confirm(message)) event.preventDefault();
     });
 });
