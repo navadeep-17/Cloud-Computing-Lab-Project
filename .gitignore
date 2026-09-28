@@ -4,6 +4,10 @@ __pycache__/
 venv/
 .env
 *.pyc
+instance/
+*.db
+*.sqlite
+*.sqlite3
 uploads/*
 !uploads/.gitkeep
 .DS_Store

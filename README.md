@@ -1,6 +1,6 @@
 # Cloud-Based File Upload and Retrieval System
 
-A Cloud Computing lab project that simulates a centralized cloud-storage service using a Flask web application and a server-side local storage directory.
+A Cloud Computing lab project that simulates a centralized cloud-storage service using Flask, SQLite metadata, authenticated users, and isolated server-side file storage.
 
 ## Problem Statement
 
@@ -10,101 +10,109 @@ Develop a Cloud-Based File Upload and Retrieval System that allows users to uplo
 
 - **Phase 1 — Core storage workflow:** Complete
 - **Phase 2 — Enhanced dashboard and file management:** Complete
-- **Phase 3 — Users, database metadata, folders and activity history:** Planned
+- **Phase 3 — Multi-user application layer:** Complete
 - **Phase 4 — Real cloud-object storage and deployment:** Planned
 
 See [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) for the phased roadmap.
 
-## Features
+## Phase 3 Features
 
-### Phase 1
+- User registration, login, and logout
+- Session-based authentication
+- Password hashing with Werkzeug
+- SQLite metadata database
+- Per-user physical storage directories
+- File ownership and authorization checks
+- Persistent file metadata
+- Nested logical folders
+- Per-user 250 MB simulated cloud quota
+- Upload, preview, download, and delete activity history
+- Account and folder activity history
+- Per-user storage statistics
+- Protected JSON APIs
+- Cross-user access isolation tests
 
-- Upload files through a browser
-- Store files in a centralized `uploads/` directory
-- List all stored files
-- Download files
-- Delete files
-- Duplicate filename handling
-- Secure filename sanitization
-- 25 MB per-file upload limit
-- Responsive dashboard
-- JSON file-list API
-- Health endpoint
-- Automated backend tests
+Phase 1 and Phase 2 functionality is retained, including upload progress, drag-and-drop upload, search, file-type filtering, sorting, file previews, details, quota visualization, duplicate display-name support, and automated testing.
 
-### Phase 2
-
-- Upload progress indicator using `XMLHttpRequest` upload progress events
-- Client-side upload-size validation
-- Search by filename
-- Filter by file category
-- Sort by name, size, and modified time
-- Rich file metadata
-- File categories and improved file-type indicators
-- Safe inline previews for supported images, PDFs, text, JSON, CSV, and Markdown
-- File details modal
-- Simulated **250 MB cloud-storage capacity**
-- Storage-used, available-space, and percentage visualization
-- Server-side quota enforcement
-- Expanded automated tests for preview and storage behavior
-
-## Architecture
+## Phase 3 Architecture
 
 ```text
-┌─────────────────────────────┐
-│       User / Browser        │
-│ HTML + CSS + JavaScript UI  │
-└──────────────┬──────────────┘
-               │ HTTP
-               │ upload / list / preview / download
-               ▼
-┌─────────────────────────────┐
-│       Flask Web Service     │
-│                             │
-│  Validation                 │
-│  Metadata                   │
-│  Storage quota              │
-│  File-management routes     │
-└──────────────┬──────────────┘
-               │ File I/O
-               ▼
-┌─────────────────────────────┐
-│ Centralized Local Storage   │
-│          uploads/           │
-└─────────────────────────────┘
+┌──────────────────────────────┐
+│        User / Browser        │
+│ Login + Cloud Drive UI       │
+└───────────────┬──────────────┘
+                │ HTTP + session cookie
+                ▼
+┌──────────────────────────────┐
+│       Flask Application      │
+│                              │
+│ Authentication               │
+│ Authorization                │
+│ Upload / Preview / Download  │
+│ Folder management            │
+│ Quota enforcement            │
+│ Activity logging             │
+└──────────────┬───────────────┘
+               │
+       ┌───────┴────────┐
+       ▼                ▼
+┌──────────────┐  ┌──────────────────┐
+│ SQLite DB    │  │ Local Storage    │
+│              │  │ uploads/         │
+│ users        │  │ ├── user_1/      │
+│ files        │  │ ├── user_2/      │
+│ folders      │  │ └── ...          │
+│ activities   │  │                  │
+└──────────────┘  └──────────────────┘
 ```
 
-The `uploads/` directory acts as the centralized storage layer. Users never need to access that directory directly; they interact with the storage through the Flask service over HTTP, which simulates the basic architecture of a cloud file-storage application.
+The filesystem stores file bytes while SQLite stores identity, ownership, logical folder relationships, metadata, and activity history. File access is performed through database IDs and every protected operation verifies that the signed-in user owns the requested object.
 
 ## Tech Stack
 
 - Python 3.10+
-- Flask
-- Werkzeug
+- Flask 3
+- SQLite (`sqlite3`, Python standard library)
+- Werkzeug password hashing
 - HTML5
 - CSS3
 - Vanilla JavaScript
 - Pytest
+- GitHub Actions
 
 ## Project Structure
 
 ```text
 Cloud-Computing-Lab-Project/
 ├── app.py
+├── auth.py
+├── database.py
+├── schema.sql
+├── pytest.ini
 ├── requirements.txt
 ├── README.md
 ├── .gitignore
+├── instance/                  # generated locally, ignored by Git
+│   └── cloudvault.db
 ├── docs/
 │   └── IMPLEMENTATION_PLAN.md
 ├── templates/
-│   └── index.html
+│   ├── index.html
+│   ├── login.html
+│   └── register.html
 ├── static/
 │   ├── style.css
+│   ├── phase3.css
 │   └── script.js
 ├── uploads/
-│   └── .gitkeep
-└── tests/
-    └── test_app.py
+│   ├── .gitkeep
+│   ├── user_1/                # generated at runtime
+│   └── user_2/
+├── tests/
+│   └── test_app.py
+└── .github/
+    └── workflows/
+        └── tests.yml
 ```
 
 ## Run Locally
@@ -114,8 +122,6 @@ git clone https://github.com/navadeep-17/Cloud-Computing-Lab-Project.git
 cd Cloud-Computing-Lab-Project
 python -m venv .venv
 ```
-
-Activate the virtual environment.
 
 ### Windows
 
@@ -129,15 +135,10 @@ Activate the virtual environment.
 source .venv/bin/activate
 ```
 
-Install dependencies:
+Install dependencies and run:
 
 ```bash
 pip install -r requirements.txt
-```
-
-Run the application:
-
-```bash
 python app.py
 ```
 
@@ -147,63 +148,108 @@ Open:
 http://127.0.0.1:5000
 ```
 
+On first launch the SQLite database is created automatically at `instance/cloudvault.db`.
+
+## First Demo Flow
+
+1. Create an account.
+2. Create a folder such as `CC Lab`.
+3. Open that folder.
+4. Upload a PDF, image, or text file.
+5. Preview the supported file.
+6. Download it.
+7. Open the Recent Activity section.
+8. Log out and create a second account to demonstrate storage isolation.
+
 ## Run Tests
 
 ```bash
-pytest
+pytest -q
 ```
+
+The test suite covers authentication, password hashing, file CRUD, previews, folders, quota enforcement, activity history, and cross-user authorization.
 
 ## Main Routes
 
 | Method | Route | Purpose |
 |---|---|---|
-| GET | `/` | Dashboard and stored-file list |
-| POST | `/upload` | Upload a file |
-| GET | `/preview/<filename>` | Preview a supported file inline |
-| GET | `/download/<filename>` | Download a stored file |
-| POST | `/delete/<filename>` | Delete a stored file |
-| GET | `/api/files` | Return file metadata and storage summary as JSON |
-| GET | `/health` | Service health check |
+| GET/POST | `/auth/register` | Create a user account |
+| GET/POST | `/auth/login` | Sign in |
+| POST | `/auth/logout` | Sign out |
+| GET | `/` | Authenticated drive dashboard |
+| POST | `/upload` | Upload a file owned by the current user |
+| GET | `/preview/<file_id>` | Preview an owned supported file |
+| GET | `/download/<file_id>` | Download an owned file |
+| POST | `/delete/<file_id>` | Delete an owned file |
+| POST | `/folders` | Create a logical folder |
+| POST | `/folders/<folder_id>/delete` | Delete an empty owned folder |
+| GET | `/api/files` | Current user's file, folder, and storage metadata |
+| GET | `/api/activity` | Current user's recent activity |
+| GET | `/health` | Public service health check |
 
-## Preview Support
+## Database Model
 
-Inline previews are intentionally restricted to a safe subset of file types:
+```text
+User
+├── id
+├── name
+├── email
+├── password_hash
+└── created_at
 
-- Images: JPG, JPEG, PNG, GIF, BMP, WEBP
-- Documents: PDF, TXT, Markdown
-- Data/text: CSV, JSON
+Folder
+├── id
+├── owner_id
+├── parent_id
+├── name
+└── created_at
 
-Other file types can still be stored and downloaded but are not rendered inline.
+File
+├── id
+├── owner_id
+├── folder_id
+├── stored_name
+├── original_name
+├── size
+├── extension
+├── category
+└── uploaded_at
 
-## Simulated Storage Capacity
+Activity
+├── id
+├── user_id
+├── file_id
+├── action
+├── details
+└── timestamp
+```
 
-The application currently simulates a **250 MB centralized cloud-storage allocation**. The dashboard shows:
+## Security and Isolation
 
-- Total storage used
-- Remaining storage
-- Percentage consumed
-- Total stored-file count
+- Passwords are hashed before being stored.
+- Protected routes require an authenticated session.
+- Files are looked up using both file ID and current user ID.
+- Folder access is validated against the current user.
+- Physical file names are random UUID-based object names rather than user-controlled paths.
+- Upload filenames are sanitized.
+- SQLite and runtime uploads are ignored by Git.
 
-The backend rejects a new upload when it would exceed the simulated capacity.
+This is a lab simulator, not a production authentication system. For public deployment, Phase 4 should add production secret management, secure cookies/HTTPS settings, CSRF protection, stronger validation, and a production WSGI server.
 
 ## Cloud Computing Concepts Demonstrated
 
 - Centralized storage
+- Multi-tenancy simulation
 - Client-server architecture
+- Authentication and authorization
+- Metadata/data separation
+- Resource quotas
 - HTTP-based resource access
-- Storage abstraction through service endpoints
-- Upload and retrieval on demand
-- Resource-capacity management
-- Metadata-driven file management
+- On-demand upload and retrieval
+- Activity/audit logging
+- Storage abstraction
 - Health monitoring
-- Separation between client UI, service layer, and storage layer
 
-## Future Cloud Extension
+## Phase 4 Direction
 
-The local storage implementation is deliberately isolated behind Flask routes. In a later phase, the storage layer can be replaced with a real object-storage service such as:
-
-- Amazon S3
-- Azure Blob Storage
-- Google Cloud Storage
-
-The browser workflow can remain nearly identical while the backend changes from local filesystem operations to cloud-object-storage API calls.
+The next phase will introduce a storage-service abstraction so the current local user directories can be replaced by Amazon S3, Azure Blob Storage, or Google Cloud Storage while retaining the same UI, authentication, metadata database, and user workflow.

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in | CloudVault</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='phase3.css') }}">
+</head>
+<body class="auth-page">
+    <main class="auth-shell">
+        <section class="auth-brand-panel">
+            <div class="brand auth-brand">
+                <div class="brand-mark">CV</div>
+                <div><h1>CloudVault</h1><p>Cloud Computing Lab Project</p></div>
+            </div>
+            <div>
+                <p class="eyebrow light">Phase 3</p>
+                <h2>Your own private cloud workspace.</h2>
+                <p>Sign in to access files, folders, storage usage, previews, downloads, and your recent activity.</p>
+            </div>
+            <div class="auth-feature-list">
+                <span>✓ Per-user storage isolation</span><span>✓ SQLite metadata</span><span>✓ Secure password hashing</span><span>✓ Authorization on file operations</span>
+            </div>
+        </section>
+        <section class="auth-card">
+            <div class="auth-card-heading"><p class="eyebrow">Welcome back</p><h2>Sign in</h2><p>Enter your CloudVault account details.</p></div>
+            {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="alert {{ category }}" role="alert">{{ message }}</div>{% endfor %}{% endwith %}
+            <form class="auth-form" method="post">
+                <label><span>Email address</span><input type="email" name="email" placeholder="you@example.com" autocomplete="email" required></label>
+                <label><span>Password</span><input type="password" name="password" placeholder="Enter your password" autocomplete="current-password" required></label>
+                <button class="primary-button" type="submit">Sign in to CloudVault</button>
+            </form>
+            <p class="auth-switch">New here? <a href="{{ url_for('auth.register') }}">Create an account</a></p>
+        </section>
+    </main>
+</body>
+</html>
