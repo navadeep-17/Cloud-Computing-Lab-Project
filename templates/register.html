@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create account | CloudVault</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="auth-page">
+    <main class="auth-shell">
+        <section class="auth-brand-panel">
+            <div class="brand auth-brand">
+                <div class="brand-mark">CV</div>
+                <div>
+                    <h1>CloudVault</h1>
+                    <p>Cloud Computing Lab Project</p>
+                </div>
+            </div>
+            <div>
+                <p class="eyebrow light">Multi-user storage</p>
+                <h2>Create your personal cloud workspace.</h2>
+                <p>Each account receives an isolated storage area, its own folders, metadata records, activity history, and a simulated 250 MB quota.</p>
+            </div>
+            <div class="auth-feature-list">
+                <span>✓ Files are private to the owner</span>
+                <span>✓ Passwords are stored as hashes</span>
+                <span>✓ Every protected file route checks ownership</span>
+                <span>✓ Activity is persisted in SQLite</span>
+            </div>
+        </section>
+
+        <section class="auth-card">
+            <div class="auth-card-heading">
+                <p class="eyebrow">Get started</p>
+                <h2>Create account</h2>
+                <p>Set up a CloudVault account for the lab demo.</p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                    <div class="alert {{ category }}" role="alert">{{ message }}</div>
+                {% endfor %}
+            {% endwith %}
+
+            <form class="auth-form" method="post">
+                <label>
+                    <span>Name</span>
+                    <input type="text" name="name" placeholder="Your name" autocomplete="name" minlength="2" required>
+                </label>
+                <label>
+                    <span>Email address</span>
+                    <input type="email" name="email" placeholder="you@example.com" autocomplete="email" required>
+                </label>
+                <label>
+                    <span>Password</span>
+                    <input type="password" name="password" placeholder="At least 6 characters" autocomplete="new-password" minlength="6" required>
+                </label>
+                <button class="primary-button" type="submit">Create CloudVault account</button>
+            </form>
+
+            <p class="auth-switch">Already have an account? <a href="{{ url_for('auth.login') }}">Sign in</a></p>
+        </section>
+    </main>
+</body>
+</html>
