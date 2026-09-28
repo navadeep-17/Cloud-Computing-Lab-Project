@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#142039">
     <title>CloudVault | File Storage</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
@@ -10,7 +11,7 @@
     <div class="app-shell">
         <aside class="sidebar">
             <div class="brand">
-                <div class="brand-mark">CV</div>
+                <div class="brand-mark" aria-hidden="true">CV</div>
                 <div>
                     <h1>CloudVault</h1>
                     <p>Local cloud simulator</p>
@@ -18,15 +19,21 @@
             </div>
 
             <nav class="nav-links" aria-label="Primary navigation">
-                <a class="nav-link active" href="#files">My Files</a>
-                <a class="nav-link" href="#upload">Upload</a>
-                <a class="nav-link" href="/health">Health</a>
+                <a class="nav-link active" href="#files"><span>▤</span> My Files</a>
+                <a class="nav-link" href="#upload"><span>↑</span> Upload</a>
+                <a class="nav-link" href="{{ url_for('health') }}"><span>●</span> Health</a>
             </nav>
 
             <div class="storage-card">
-                <span>Storage summary</span>
-                <strong>{{ total_size }}</strong>
-                <small>{{ total_files }} file{{ '' if total_files == 1 else 's' }} stored</small>
+                <div class="storage-card-heading">
+                    <span>Storage</span>
+                    <strong>{{ storage.percentage }}%</strong>
+                </div>
+                <div class="storage-meter" aria-label="{{ storage.percentage }} percent storage used">
+                    <span style="width: {{ storage.percentage }}%"></span>
+                </div>
+                <p><strong>{{ storage.used_label }}</strong> of {{ storage.capacity_label }} used</p>
+                <small>{{ storage.available_label }} available</small>
             </div>
         </aside>
 
@@ -36,7 +43,7 @@
                     <p class="eyebrow">Cloud Computing Lab Project</p>
                     <h2>Centralized File Storage</h2>
                 </div>
-                <a class="primary-button compact" href="#upload">Upload File</a>
+                <a class="primary-button compact" href="#upload">+ Upload File</a>
             </header>
 
             {% if request.args.get('message') %}
@@ -45,37 +52,81 @@
             </div>
             {% endif %}
 
-            <section class="hero-grid">
-                <div class="hero-card">
-                    <p class="eyebrow">Simple. Centralized. Accessible.</p>
-                    <h3>Store and retrieve files through a web-based cloud simulation.</h3>
-                    <p>The browser communicates with a Flask server over HTTP while files are stored in a centralized server directory.</p>
-                    <div class="hero-stats">
-                        <div>
-                            <strong>{{ total_files }}</strong>
-                            <span>Stored files</span>
-                        </div>
-                        <div>
-                            <strong>{{ total_size }}</strong>
-                            <span>Storage used</span>
-                        </div>
-                        <div>
-                            <strong>{{ max_upload_mb }} MB</strong>
-                            <span>Max upload</span>
-                        </div>
+            <section class="metrics-grid" aria-label="Storage metrics">
+                <article class="metric-card">
+                    <div class="metric-icon">▤</div>
+                    <div>
+                        <span>Total files</span>
+                        <strong>{{ total_files }}</strong>
                     </div>
-                </div>
+                </article>
+                <article class="metric-card">
+                    <div class="metric-icon">◫</div>
+                    <div>
+                        <span>Storage used</span>
+                        <strong>{{ total_size }}</strong>
+                    </div>
+                </article>
+                <article class="metric-card">
+                    <div class="metric-icon">◎</div>
+                    <div>
+                        <span>Available</span>
+                        <strong>{{ storage.available_label }}</strong>
+                    </div>
+                </article>
+                <article class="metric-card">
+                    <div class="metric-icon">↑</div>
+                    <div>
+                        <span>Upload limit</span>
+                        <strong>{{ max_upload_mb }} MB</strong>
+                    </div>
+                </article>
+            </section>
 
-                <form id="upload" class="upload-card" action="{{ url_for('upload_file') }}" method="post" enctype="multipart/form-data">
-                    <div id="dropZone" class="drop-zone" tabindex="0">
+            <section class="hero-grid">
+                <article class="hero-card">
+                    <div>
+                        <p class="eyebrow">Cloud storage simulation</p>
+                        <h3>Upload once. Retrieve from one centralized service.</h3>
+                        <p>CloudVault demonstrates the core cloud-storage flow: a browser sends files over HTTP, the server stores them centrally, and users retrieve them on demand.</p>
+                    </div>
+                    <div class="architecture-flow" aria-label="System architecture">
+                        <div><span>01</span><strong>Browser</strong><small>Client</small></div>
+                        <b>→</b>
+                        <div><span>02</span><strong>Flask</strong><small>Service</small></div>
+                        <b>→</b>
+                        <div><span>03</span><strong>Storage</strong><small>Centralized</small></div>
+                    </div>
+                </article>
+
+                <form id="upload" class="upload-card" action="{{ url_for('upload_file') }}" method="post" enctype="multipart/form-data" data-max-bytes="{{ max_upload_mb * 1024 * 1024 }}">
+                    <div class="upload-card-heading">
+                        <div>
+                            <p class="eyebrow">Add to storage</p>
+                            <h3>Upload a file</h3>
+                        </div>
+                        <span class="status-dot"><i></i> Online</span>
+                    </div>
+
+                    <div id="dropZone" class="drop-zone" tabindex="0" role="button" aria-label="Choose a file to upload">
                         <input id="fileInput" type="file" name="file" hidden required>
                         <div class="upload-icon">↑</div>
-                        <h3>Drop a file here</h3>
+                        <h4>Drop a file here</h4>
                         <p>or click to browse from your device</p>
                         <span>Maximum {{ max_upload_mb }} MB per file</span>
                     </div>
+
                     <div id="selectedFile" class="selected-file">No file selected</div>
-                    <button class="primary-button" type="submit">Upload to CloudVault</button>
+
+                    <div id="uploadProgress" class="upload-progress hidden" aria-live="polite">
+                        <div class="progress-copy">
+                            <span id="uploadProgressText">Uploading…</span>
+                            <strong id="uploadProgressPercent">0%</strong>
+                        </div>
+                        <div class="progress-track"><span id="uploadProgressBar"></span></div>
+                    </div>
+
+                    <button id="uploadButton" class="primary-button" type="submit">Upload to CloudVault</button>
                 </form>
             </section>
 
@@ -84,11 +135,37 @@
                     <div>
                         <p class="eyebrow">Centralized directory</p>
                         <h3>Your Files</h3>
+                        <p class="section-subtitle">Search, sort, preview, inspect, download, or delete stored objects.</p>
                     </div>
-                    <label class="search-box">
-                        <span aria-hidden="true">⌕</span>
-                        <input id="searchInput" type="search" placeholder="Search files..." autocomplete="off">
-                    </label>
+                    <div class="file-controls">
+                        <label class="search-box">
+                            <span aria-hidden="true">⌕</span>
+                            <input id="searchInput" type="search" placeholder="Search files..." autocomplete="off">
+                        </label>
+                        <label class="select-control">
+                            <span class="sr-only">Filter by type</span>
+                            <select id="categoryFilter">
+                                <option value="all">All types</option>
+                                <option value="image">Images</option>
+                                <option value="document">Documents</option>
+                                <option value="spreadsheet">Spreadsheets</option>
+                                <option value="archive">Archives</option>
+                                <option value="code">Code</option>
+                                <option value="file">Other</option>
+                            </select>
+                        </label>
+                        <label class="select-control">
+                            <span class="sr-only">Sort files</span>
+                            <select id="sortSelect">
+                                <option value="newest">Newest first</option>
+                                <option value="oldest">Oldest first</option>
+                                <option value="name-asc">Name A–Z</option>
+                                <option value="name-desc">Name Z–A</option>
+                                <option value="size-desc">Largest first</option>
+                                <option value="size-asc">Smallest first</option>
+                            </select>
+                        </label>
+                    </div>
                 </div>
 
                 <div class="file-table-wrapper">
@@ -105,21 +182,36 @@
                         </thead>
                         <tbody id="fileTableBody">
                             {% for file in files %}
-                            <tr class="file-row" data-filename="{{ file.name|lower }}">
+                            <tr class="file-row"
+                                data-filename="{{ file.name|lower }}"
+                                data-name="{{ file.name }}"
+                                data-extension="{{ file.extension }}"
+                                data-category="{{ file.category }}"
+                                data-size="{{ file.size }}"
+                                data-size-label="{{ file.size_label }}"
+                                data-modified="{{ file.modified_timestamp }}"
+                                data-modified-label="{{ file.modified_label }}"
+                                data-previewable="{{ 'true' if file.previewable else 'false' }}"
+                                data-preview-url="{{ url_for('preview_file', filename=file.name) if file.previewable else '' }}"
+                                data-download-url="{{ url_for('download_file', filename=file.name) }}">
                                 <td>
-                                    <div class="file-name-cell">
-                                        <span class="file-icon">{{ file.extension[:3]|upper }}</span>
-                                        <div>
-                                            <strong>{{ file.name }}</strong>
-                                            <small>Stored on server</small>
-                                        </div>
-                                    </div>
+                                    <button class="file-name-button details-trigger" type="button" aria-label="View details for {{ file.name }}">
+                                        <span class="file-icon file-icon-{{ file.category }}">{{ file.extension[:3]|upper }}</span>
+                                        <span class="file-name-copy">
+                                            <strong title="{{ file.name }}">{{ file.name }}</strong>
+                                            <small>{{ file.category|capitalize }} · Stored on server</small>
+                                        </span>
+                                    </button>
                                 </td>
                                 <td><span class="type-badge">{{ file.extension|upper }}</span></td>
                                 <td>{{ file.size_label }}</td>
                                 <td>{{ file.modified_label }}</td>
                                 <td>
                                     <div class="row-actions">
+                                        {% if file.previewable %}
+                                        <button class="icon-button preview-trigger" type="button" title="Preview {{ file.name }}" aria-label="Preview {{ file.name }}">◉</button>
+                                        {% endif %}
+                                        <button class="secondary-button details-trigger" type="button">Details</button>
                                         <a class="secondary-button" href="{{ url_for('download_file', filename=file.name) }}">Download</a>
                                         <form action="{{ url_for('delete_file', filename=file.name) }}" method="post" onsubmit="return confirm('Delete {{ file.name }}?');">
                                             <button class="danger-button" type="submit">Delete</button>
@@ -131,8 +223,10 @@
                         </tbody>
                     </table>
                     <div id="noSearchResults" class="empty-state hidden">
+                        <div class="empty-icon">⌕</div>
                         <h4>No matching files</h4>
-                        <p>Try a different filename.</p>
+                        <p>Change your search or file-type filter.</p>
+                        <button id="clearFilters" class="secondary-button" type="button">Clear filters</button>
                     </div>
                     {% else %}
                     <div class="empty-state">
@@ -146,6 +240,33 @@
             </section>
         </main>
     </div>
+
+    <dialog id="fileModal" class="file-modal">
+        <div class="modal-shell">
+            <header class="modal-header">
+                <div>
+                    <p class="eyebrow">Stored object</p>
+                    <h3 id="modalFileName">File details</h3>
+                </div>
+                <button id="closeModal" class="modal-close" type="button" aria-label="Close file details">×</button>
+            </header>
+
+            <div id="previewPanel" class="preview-panel hidden"></div>
+
+            <dl class="details-grid">
+                <div><dt>Type</dt><dd id="modalFileType">—</dd></div>
+                <div><dt>Size</dt><dd id="modalFileSize">—</dd></div>
+                <div><dt>Category</dt><dd id="modalFileCategory">—</dd></div>
+                <div><dt>Modified</dt><dd id="modalFileModified">—</dd></div>
+                <div class="details-wide"><dt>Storage</dt><dd>Centralized local server directory</dd></div>
+            </dl>
+
+            <div class="modal-actions">
+                <button id="modalPreviewButton" class="secondary-button hidden" type="button">Show preview</button>
+                <a id="modalDownloadButton" class="primary-button compact" href="#">Download file</a>
+            </div>
+        </div>
+    </dialog>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
