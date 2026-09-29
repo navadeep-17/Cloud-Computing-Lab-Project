@@ -216,14 +216,18 @@ def test_upload_list_preview_download_and_delete(client):
 
     file_id = payload["files"][0]["id"]
 
-    preview_response = client.get(f"/preview/{file_id}")
+    # File responses are streamed. Explicitly buffering/closing them keeps the
+    # test portable to Windows, where an open file handle prevents unlink().
+    preview_response = client.get(f"/preview/{file_id}", buffered=True)
     assert preview_response.status_code == 200
     assert preview_response.data == b"cloud lab test data"
+    preview_response.close()
 
-    download_response = client.get(f"/download/{file_id}")
+    download_response = client.get(f"/download/{file_id}", buffered=True)
     assert download_response.status_code == 200
     assert download_response.data == b"cloud lab test data"
     assert "attachment" in download_response.headers["Content-Disposition"]
+    download_response.close()
 
     delete_response = delete_file(client, file_id, follow_redirects=True)
     assert delete_response.status_code == 200
@@ -311,7 +315,11 @@ def test_activity_history_records_file_events(client):
     register(client)
     upload(client, b"activity", "activity.txt")
     file_id = first_file(client)["id"]
-    client.get(f"/download/{file_id}")
+
+    download_response = client.get(f"/download/{file_id}", buffered=True)
+    assert download_response.status_code == 200
+    download_response.close()
+
     delete_file(client, file_id)
 
     payload = client.get("/api/activity").get_json()
